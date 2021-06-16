@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="modulepreload" href="/matching-seed/pkg/package.js" as="script" type="text/javascript">
+    <link rel="preload" href="/matching-seed/pkg/package_bg.wasm" as="fetch" type="application/wasm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.2/css/bulma.min.css">
+</head>
+
+<body>
+    <section id="app"></section>
+    <script type="module">
+        import init from '/matching-seed/pkg/package.js';
+        init('/matching-seed/pkg/package_bg.wasm');
+    </script>
+</body>
+
+</html>
