@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use ulid::Ulid;
 use web_sys::{self, DragEvent, Event, FileList};
 
-use rand::thread_rng;
 use rand::seq::SliceRandom;
+use rand::thread_rng;
 
 extern crate base64;
 extern crate image;
@@ -27,38 +27,30 @@ fn init(_: Url, _: &mut impl Orders<Msg>) -> Model {
 // ------ ------
 //     Models
 // ------ ------
-// todo delete this debug
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(PartialOrd, PartialEq)]
 enum CardState {
     FaceUp,
     FaceDown,
 }
 
-// todo delete this debug
-#[derive(Debug)]
 enum NewCardType {
     OnePhoto(String),
     Empty,
 }
 
-// todo delete the debug part
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct Card {
     text: Option<String>,
     photo: Option<String>,
     id: Ulid,
 }
 
-//todo delete this
-#[derive(Debug)]
 struct PlayedCard {
     card: Card,
     displayed: CardState,
     matched: bool,
 }
 
-// todo delete the debug thing
-#[derive(Debug)]
 struct Model {
     game_started: bool,
     words_list: BTreeMap<Ulid, Card>,
@@ -72,7 +64,7 @@ struct Model {
 
 impl Model {
     fn all_face_down(&mut self) {
-        for card in self.board.iter_mut() {
+        for card in &mut self.board {
             card.displayed = CardState::FaceDown;
         }
         self.needs_reset = false;
@@ -81,8 +73,8 @@ impl Model {
 }
 
 impl Default for Model {
-    fn default() -> Model {
-        Model {
+    fn default() -> Self {
+        Self {
             game_started: false,
             words_list: BTreeMap::new(),
             board: Vec::new(),
@@ -97,8 +89,6 @@ impl Default for Model {
 // ------ ------
 //    Update
 // ------ ------
-// todo delete the debug thing
-#[derive(Debug)]
 enum Msg {
     NewCard(NewCardType),
     UpdateCardText { id: Ulid, text: String },
@@ -114,16 +104,17 @@ enum Msg {
     Drop(FileList),
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_lines))]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::case_sensitive_file_extension_comparisons)
+)]
+// update, and make clippy allow too many lines since I don't feel like making this more readable
 fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
-    // todo delete this shit
-    // let this help me track what's going on
-    log!(format!("{:?}", msg));
     match msg {
         // create a new card based on NewCardType
         Msg::NewCard(card_type) => {
             let new_id = Ulid::new();
-
-            log!("adding new card: ", new_id.to_string());
 
             match card_type {
                 NewCardType::Empty => {
@@ -147,62 +138,50 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 
         // update a card with new text
         Msg::UpdateCardText { id, text } => {
-            if text.len() > 0 {
-                match model.words_list.get_mut(&id) {
-                    Some(card) => {
-                        card.text = Some(text);
-                    }
-                    None => {}
+            if !text.is_empty() {
+                if let Some(card) = model.words_list.get_mut(&id) {
+                    card.text = Some(text);
                 }
             }
         }
 
         // delete a card from the BTree
         Msg::DeleteCard(id) => {
-            let _ = model.words_list.remove(&id);
+            let _garbage = model.words_list.remove(&id);
         }
 
         // let me guess the card
         Msg::GuessCard(index) => {
             if model.needs_reset {
-                log!("needs reset flag, so resetting");
                 model.all_face_down();
                 return;
             }
-            //todo delete this
-            log!("guessing a card");
-            log!("last: ", model.last);
-            match model.last {
-                Some(last_guessed) => {
-                    // two IDs
-                    let just_guessed = model.board[index].card.id;
-                    if just_guessed == last_guessed {
-                        log!("correct guess");
-                        // the person guessed correctly!
-                        // set the cards to displayed and to matched = true
-                        for card in model.board.iter_mut() {
-                            if card.card.id == just_guessed || card.card.id == last_guessed {
-                                card.displayed = CardState::FaceUp;
-                                card.matched = true;
-                            }
-                        }
-                        // set the last to none again, since it was a correct guess.
-                        model.last = None;
-                    } else {
-                        // guessed incorrectly :(
-                        log!("incorrect guess");
-                        model.board[index].displayed = CardState::FaceUp;
-                        model.needs_reset = true;
-                    }
-                }
 
-                // first of card flips, so just flip it and move on
-                None => {
-                    // this will be the only flipped card, so set the last value to this one
-                    model.last = Some(model.board[index].card.id);
-                    // and flip the card so we can see it
+            // do whatever based on whether there's a model.last or not
+            if let Some(last_guessed) = model.last {
+                // two IDs
+                let just_guessed = model.board[index].card.id;
+                if just_guessed == last_guessed {
+                    // the person guessed correctly!
+                    // set the cards to displayed and to matched = true
+                    for card in &mut model.board {
+                        if card.card.id == just_guessed || card.card.id == last_guessed {
+                            card.displayed = CardState::FaceUp;
+                            card.matched = true;
+                        }
+                    }
+                    // set the last to none again, since it was a correct guess.
+                    model.last = None;
+                } else {
+                    // guessed incorrectly :(
                     model.board[index].displayed = CardState::FaceUp;
+                    model.needs_reset = true;
                 }
+            } else {
+                // this will be the only flipped card, so set the last value to this one
+                model.last = Some(model.board[index].card.id);
+                // and flip the card so we can see it
+                model.board[index].displayed = CardState::FaceUp;
             }
         }
 
@@ -212,7 +191,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                 return;
             }
             let mut new_board: Vec<PlayedCard> = vec![];
-            for (_, card_pair) in model.words_list.iter() {
+            for card_pair in model.words_list.values() {
                 // skip the card if both photo and text are empty
                 if card_pair.text == None && card_pair.photo == None {
                     continue;
@@ -251,8 +230,6 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 
         // ResetClick will let me turn off the click listener and turn all cards FaceDown
         Msg::ResetClick => {
-            // todo delete this
-            log!("resetting the clicker");
             // set all to face down
             model.all_face_down();
         }
@@ -273,7 +250,9 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
             let files = (0..file_list.length())
                 .filter_map(|index| {
                     let file = file_list.get(index).expect("get file with given index");
-                    if file.name().to_lowercase().ends_with(".png") || file.name().to_lowercase().ends_with(".gif") {
+                    if file.name().to_lowercase().ends_with(".png")
+                        || file.name().to_lowercase().ends_with(".gif")
+                    {
                         Some(file)
                     } else {
                         None
@@ -299,7 +278,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
 
                     // from https://stackoverflow.com/questions/57457818/how-to-convert-dynamicimage-to-base64
                     let mut blob_buf = vec![];
-                    let _ = pic.write_to(&mut blob_buf, format);
+                    let _garbage = pic.write_to(&mut blob_buf, format);
                     let resized_pic_b64: String = base64::encode(&blob_buf);
 
                     // make a nice url here
@@ -353,11 +332,14 @@ fn view(model: &Model) -> Vec<Node<Msg>> {
     }
 }
 
-/// play the game page
+// play the game page
 fn game_page(model: &Model) -> Vec<Node<Msg>> {
-    let all_cards: Vec<Node<Msg>> = model.board.iter().enumerate().map(|(index, played_card)| {
-        print_card(played_card, index)
-    }).collect();
+    let all_cards: Vec<Node<Msg>> = model
+        .board
+        .iter()
+        .enumerate()
+        .map(|(index, played_card)| print_card(played_card, index))
+        .collect();
 
     // take cards and put them into divs for columns
     let mut row: Vec<Node<Msg>> = vec![];
@@ -366,7 +348,7 @@ fn game_page(model: &Model) -> Vec<Node<Msg>> {
         row.push(card.clone());
 
         // put the correct number of cards in a row
-        if (index + 1) % COLUMNS_NUMBER  == 0 {
+        if (index + 1) % COLUMNS_NUMBER == 0 {
             all.push(div![C!["columns"], &row]);
             row.clear();
         }
@@ -392,14 +374,14 @@ fn game_page(model: &Model) -> Vec<Node<Msg>> {
         button![
             "Create New",
             C!["button is-large is-warning"],
-            ev(Ev::Click, move |_| {Msg::ExitGame})
+            ev(Ev::Click, move |_| { Msg::ExitGame })
         ]
     ]);
 
     all
 }
 
-/// print a card
+// print a card
 fn print_card(played_card: &PlayedCard, index: usize) -> Node<Msg> {
     // make a more usable photo string
     let card_image = match &played_card.card.photo {
@@ -421,22 +403,13 @@ fn print_card(played_card: &PlayedCard, index: usize) -> Node<Msg> {
                 C!["card"],
                 div![
                     C!["card-image"],
-                    figure!(
-                        C!["image is-square is-fullwidth"],
-                        raw!(&card_image),
-                    )
+                    figure!(C!["image is-square is-fullwidth"], raw!(&card_image),)
                 ],
                 div![
                     C!["card-content"],
                     div![
                         C!["media"],
-                        div![
-                            C!["media-content"],
-                            p!(
-                                C!["title is-4"],
-                                card_text,
-                            )
-                        ]
+                        div![C!["media-content"], p!(C!["title is-4"], card_text,)]
                     ]
                 ],
                 ev(Ev::Click, move |_| Msg::ResetClick),
@@ -445,26 +418,17 @@ fn print_card(played_card: &PlayedCard, index: usize) -> Node<Msg> {
     } else {
         div![
             C!["column"],
-                div![
+            div![
                 C!["card"],
                 div![
                     C!["card-image"],
-                    figure!(
-                        C!["image is-square is-fullwidth"],
-                        raw!(&question_image),
-                    )
+                    figure!(C!["image is-square is-fullwidth"], raw!(&question_image),)
                 ],
                 div![
                     C!["card-content"],
                     div![
                         C!["media"],
-                        div![
-                            C!["media-content"],
-                            p!(
-                                C!["title is-4"],
-                                index + 1,
-                            )
-                        ]
+                        div![C!["media-content"], p!(C!["title is-4"], index + 1,)]
                     ]
                 ],
                 ev(Ev::Click, move |_| Msg::GuessCard(index))
@@ -473,7 +437,7 @@ fn print_card(played_card: &PlayedCard, index: usize) -> Node<Msg> {
     }
 }
 
-/// show the new words page
+// show the new words page
 fn new_words_page(model: &Model) -> Vec<Node<Msg>> {
     /*
     the list of the words and formatted
@@ -493,33 +457,32 @@ fn new_words_page(model: &Model) -> Vec<Node<Msg>> {
                 Some(text) => text,
                 None => "",
             };
-            let this_id = id.clone();
+            let this_id = *id;
 
             tr!(
-                td!(
-                    div![
-                        IF!(&image_blob.len() > &0 => raw!(&image_blob)),
-                        style![
-                            St::Margin => "5px",
-                        ]
-                    ],
-                ),
-                td!(
-                    div![
-                        input![
-                            card_text,
-                            input_ev(Ev::Input, move |word| Msg::UpdateCardText {id: this_id, text: word}),
-                        ],
-                        button![
-                            "delete",
-                            ev(Ev::Click, move |_| Msg::DeleteCard(this_id)),
-                            C!["button is-small is-danger"]
-                        ],
-                        style![
-                            St::Margin => "5px"
-                        ]
+                td!(div![
+                    IF!(!image_blob.is_empty() => raw!(&image_blob)),
+                    style![
+                        St::Margin => "5px",
                     ]
-                )
+                ],),
+                td!(div![
+                    input![
+                        card_text,
+                        input_ev(Ev::Input, move |word| Msg::UpdateCardText {
+                            id: this_id,
+                            text: word
+                        }),
+                    ],
+                    button![
+                        "delete",
+                        ev(Ev::Click, move |_| Msg::DeleteCard(this_id)),
+                        C!["button is-small is-danger"]
+                    ],
+                    style![
+                        St::Margin => "5px"
+                    ]
+                ])
             )
         })
         .collect::<Vec<Node<Msg>>>();
@@ -550,66 +513,61 @@ fn new_words_page(model: &Model) -> Vec<Node<Msg>> {
     put it all into a Vec to return
      */
     vec![
-        drag_and_drop_area(&model),
+        drag_and_drop_area(model),
         br!(),
-        table![
-            existing_words,
-            C!["table is-striped"]
-        ],
+        table![existing_words, C!["table is-striped"]],
         add_new_button,
         clear_list_button,
         br!(),
-        start_game
+        start_game,
     ]
 }
 
-/// drag and drop area
-/// https://github.com/seed-rs/seed/blob/master/examples/drop_zone/src/lib.rs
+// drag and drop area
+// https://github.com/seed-rs/seed/blob/master/examples/drop_zone/src/lib.rs
 fn drag_and_drop_area(model: &Model) -> Node<Msg> {
-    div![
-        div![
-            style![
-                St::Height => px(200),
-                St::Width => px(200),
-                St::Margin => "auto",
-                St::Background => if model.drop_zone_active { "lightgreen" } else { "lightgray" },
-                St::FontFamily => "sans-serif",
-                St::Display => "flex",
-                St::FlexDirection => "column",
-                St::JustifyContent => "center",
-                St::AlignItems => "center",
-                St::Border => [&px(2), "dashed", "black"].join(" ");
-                St::BorderRadius => px(20),
-            ],
-            ev(Ev::DragEnter, |event| {
-                stop_and_prevent!(event);
-                Msg::DragEnter
-            }),
-            ev(Ev::DragOver, |event| {
-                let drag_event = event.into_drag_event();
-                stop_and_prevent!(drag_event);
-                drag_event.data_transfer().unwrap().set_drop_effect("copy");
-                Msg::DragOver
-            }),
-            ev(Ev::DragLeave, |event| {
-                stop_and_prevent!(event);
-                Msg::DragLeave
-            }),
-            ev(Ev::Drop, |event| {
-                let drag_event = event.into_drag_event();
-                stop_and_prevent!(drag_event);
-                let file_list = drag_event.data_transfer().unwrap().files().unwrap();
-                Msg::Drop(file_list)
-            }),
-            div![
-                style! {
-                    // we don't want to fire `DragLeave` when we are dragging over drop-zone children
-                    St::PointerEvents => "none",
-                },
-                div!["Drop png or gif here"],
-            ],
+    div![div![
+        style![
+            St::Height => px(200),
+            St::Width => px(200),
+            St::Margin => "auto",
+            St::Background => if model.drop_zone_active { "lightgreen" } else { "lightgray" },
+            St::FontFamily => "sans-serif",
+            St::Display => "flex",
+            St::FlexDirection => "column",
+            St::JustifyContent => "center",
+            St::AlignItems => "center",
+            St::Border => [&px(2), "dashed", "black"].join(" ");
+            St::BorderRadius => px(20),
         ],
-    ]
+        ev(Ev::DragEnter, |event| {
+            stop_and_prevent!(event);
+            Msg::DragEnter
+        }),
+        ev(Ev::DragOver, |event| {
+            let drag_event = event.into_drag_event();
+            stop_and_prevent!(drag_event);
+            drag_event.data_transfer().unwrap().set_drop_effect("copy");
+            Msg::DragOver
+        }),
+        ev(Ev::DragLeave, |event| {
+            stop_and_prevent!(event);
+            Msg::DragLeave
+        }),
+        ev(Ev::Drop, |event| {
+            let drag_event = event.into_drag_event();
+            stop_and_prevent!(drag_event);
+            let file_list = drag_event.data_transfer().unwrap().files().unwrap();
+            Msg::Drop(file_list)
+        }),
+        div![
+            style! {
+                // we don't want to fire `DragLeave` when we are dragging over drop-zone children
+                St::PointerEvents => "none",
+            },
+            div!["Drop png or gif here"],
+        ],
+    ],]
 }
 
 // ------ ------
