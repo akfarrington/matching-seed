@@ -1,15 +1,11 @@
 #![allow(clippy::wildcard_imports)]
 use image::{DynamicImage, ImageFormat};
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use seed::{prelude::*, *};
 use std::collections::BTreeMap;
 use ulid::Ulid;
 use web_sys::{self, DragEvent, Event, FileList};
-
-use rand::seq::SliceRandom;
-use rand::thread_rng;
-
-extern crate base64;
-extern crate image;
 
 const THUMB_SIZE: u32 = 250;
 const COLUMNS_NUMBER: usize = 6;
@@ -252,6 +248,8 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                     let file = file_list.get(index).expect("get file with given index");
                     if file.name().to_lowercase().ends_with(".png")
                         || file.name().to_lowercase().ends_with(".gif")
+                        || file.name().to_lowercase().ends_with(".jpg")
+                        || file.name().to_lowercase().ends_with(".jpeg")
                     {
                         Some(file)
                     } else {
@@ -285,6 +283,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                     let format_string = match format {
                         ImageFormat::Gif => "image/gif",
                         ImageFormat::Png => "image/png",
+                        ImageFormat::Jpeg => "image/jpeg",
                         _ => "image",
                     };
 
@@ -467,6 +466,8 @@ fn new_words_page(model: &Model) -> Vec<Node<Msg>> {
                     ]
                 ],),
                 td!(div![
+                    "show vocab word (optional)",
+                    br!(),
                     input![
                         card_text,
                         input_ev(Ev::Input, move |word| Msg::UpdateCardText {
@@ -565,7 +566,7 @@ fn drag_and_drop_area(model: &Model) -> Node<Msg> {
                 // we don't want to fire `DragLeave` when we are dragging over drop-zone children
                 St::PointerEvents => "none",
             },
-            div!["Drop png or gif here"],
+            div!["Drop jpg/png/gif here"],
         ],
     ],]
 }
