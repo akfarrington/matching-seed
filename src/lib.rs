@@ -23,7 +23,7 @@ fn init(_: Url, _: &mut impl Orders<Msg>) -> Model {
 // ------ ------
 //     Models
 // ------ ------
-#[derive(PartialOrd, PartialEq)]
+#[derive(PartialOrd, PartialEq, Clone)]
 enum CardState {
     FaceUp,
     FaceDown,
@@ -90,6 +90,7 @@ enum Msg {
     UpdateCardText { id: Ulid, text: String },
     DeleteCard(Ulid),
     GuessCard(usize),
+    ShowHideAll,
     StartGame,
     ExitGame,
     ResetClick,
@@ -162,10 +163,13 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                     // set the cards to displayed and to matched = true
                     for card in &mut model.board {
                         if card.card.id == just_guessed || card.card.id == last_guessed {
-                            card.displayed = CardState::FaceUp;
+                            // card.displayed = CardState::FaceUp;
                             card.matched = true;
                         }
                     }
+                    // set all to face down (to make toggle less messed up)
+                    // if card.matched == true, the card will be displayed regardless
+                    model.all_face_down();
                     // set the last to none again, since it was a correct guess.
                     model.last = None;
                 } else {
@@ -179,6 +183,31 @@ fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
                 // and flip the card so we can see it
                 model.board[index].displayed = CardState::FaceUp;
             }
+        }
+
+        // show/hide all
+        Msg::ShowHideAll => {
+            // see if any are flipped already
+            let any_flipped = model
+                .board
+                .iter()
+                .any(|card| card.displayed == CardState::FaceUp);
+
+            // set an all_state. make all cards this next
+            let new_state: CardState = if any_flipped {
+                // one or more are already flipped, so face down
+                CardState::FaceDown
+            } else {
+                CardState::FaceUp
+            };
+
+            // get a copy of the board vec
+            for card in &mut model.board {
+                card.displayed = new_state.clone();
+            }
+
+            // clear last (if not cleared it will cause some weirdness)
+            model.last = None;
         }
 
         // start the game
@@ -363,8 +392,26 @@ fn game_page(model: &Model) -> Vec<Node<Msg>> {
         }
     }
 
+    // decide whether to show a button that says show all or hide all
+    let show_hide_all_button_text: &str = if model
+        .board
+        .iter()
+        .any(|card| card.displayed == CardState::FaceUp)
+    {
+        // one or more are face up so display face down
+        "hide all"
+    } else {
+        "show all"
+    };
+
     // just add a couple of buttons at the bottom to make navigation easier
     all.push(div![
+        button![
+            show_hide_all_button_text,
+            C!["button is-large is-danger"],
+            ev(Ev::Click, move |_| { Msg::ShowHideAll })
+        ],
+        br!(),
         button![
             "Play again!",
             C!["button is-large is-success"],
